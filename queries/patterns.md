@@ -101,12 +101,14 @@ ORDER BY 1
 
 ## NRU (신규 가입자, 일별)
 
+`is_certified = true` 기준. `tb_auth_log.log_type = 0` 아님.
+
 ```sql
 SELECT
   DATE(created_at, 'Asia/Seoul') AS date,
   COUNT(*) AS nru
-FROM `makestar-dw.pg_mystarroom_public.tb_auth_log`
-WHERE log_type = 0
+FROM `makestar-dw.pg_mystarroom_public.tb_auth_user`
+WHERE is_certified = true
   AND DATE(created_at, 'Asia/Seoul') >= '2025-01-01'
 GROUP BY 1
 ORDER BY 1

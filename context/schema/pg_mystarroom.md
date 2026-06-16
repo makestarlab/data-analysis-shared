@@ -10,7 +10,7 @@ Makestar 서비스 원본 Postgres DB → BigQuery CDC (Datastream)
 
 ---
 
-## tb_auth_log — 로그인/가입/탈퇴 로그 (NRU: log_type=0)
+## tb_auth_log — 로그인·탈퇴 로그 (NRU 기준 아님 — tb_auth_user.is_certified 사용)
 
 | 컬럼 | 타입 | Null | 설명 |
 |---|---|---|---|

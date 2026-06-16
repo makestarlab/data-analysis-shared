@@ -23,7 +23,7 @@ Makestar는 K-POP 아티스트 기반 크라우드펀딩·커머스 플랫폼.
 | MAU | 월간 활성 유저. `COUNT(DISTINCT user_pseudo_id)` from `customer_analysis_visit` |
 | PUR | 구매전환율. PU / MAU |
 | DAU/WAU | `datamart.dau`, `datamart.wau` |
-| NRU | 신규 가입자. `tb_auth_log WHERE log_type = 0` |
+| NRU | 신규 가입자. `tb_auth_user WHERE is_certified = true` 기준 |
 | Stickiness | DAU / MAU |
 | Churn | 미구매 기간 기준 (기준값 미확정) |
 
