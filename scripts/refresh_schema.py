@@ -6,15 +6,15 @@ BigQuery에서 스키마를 읽어 context/schema/ 파일들을 자동 갱신.
   [Excel 수동]    pg_mystarroom.md, pg_oms.md, makestar_pay.md, tms.md
                   ← Makestar DB schema.xlsx 기반. 컬럼 추가 시 수동 업데이트
 
-사용법:
-  source ~/bq-analysis/.venv/bin/activate
-  python3 scripts/refresh_schema.py
+실행 전 로컬 설정 필요:
+  - KEY_PATH: BQ 서비스 계정 키 파일 경로로 변경
+  - Python 환경: google-cloud-bigquery 설치 필요
 """
 
 from google.cloud import bigquery
 from pathlib import Path
 
-KEY_PATH = "/Users/songakim/Documents/system/makestar-dw-5132eea235fa.json"
+KEY_PATH = "YOUR_BQ_SERVICE_ACCOUNT_KEY.json"  # 개인 로컬 경로로 변경
 PROJECT_ID = "makestar-dw"
 SCHEMA_DIR = Path(__file__).parent.parent / "context" / "schema"
 

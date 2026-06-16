@@ -1,25 +1,8 @@
 # Makestar 데이터 분석 공유 컨텍스트
 
-팀 공통 분석 환경. 개별 프로젝트 CLAUDE.md에서 아래처럼 import:
-```
-@/Users/songakim/Documents/works/analysis-shared/CLAUDE.md
-```
+Makestar 데이터 분석을 위한 공유 프레임워크. 스키마, 도메인 지식, 코드값, SQL 패턴을 담고 있다.
 
----
-
-## BigQuery 연결
-
-- **프로젝트**: `makestar-dw`
-- **인증키**: `~/Documents/system/makestar-dw-5132eea235fa.json`
-- **Python 환경**: `source ~/bq-analysis/.venv/bin/activate`
-
-```python
-from google.cloud import bigquery
-client = bigquery.Client.from_service_account_json(
-    "/Users/songakim/Documents/system/makestar-dw-5132eea235fa.json",
-    project="makestar-dw"
-)
-```
+- **BQ 프로젝트**: `makestar-dw`
 
 ---
 
