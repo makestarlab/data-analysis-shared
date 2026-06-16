@@ -16,13 +16,8 @@ git clone https://github.com/makestarlab/data-analysis-shared.git ~/Documents/wo
 
 ### 2. Claude Code 전역 설정
 
-`~/.claude/CLAUDE.md` 파일에 아래 한 줄을 추가한다. 파일이 없으면 새로 만든다.
-
-```bash
-echo "@$(echo ~)/Documents/works/analysis-shared/CLAUDE.md" >> ~/.claude/CLAUDE.md
-```
-
-또는 직접 `~/.claude/CLAUDE.md`를 열어 맨 위에 추가:
+`~/.claude/CLAUDE.md` 파일을 열고 (없으면 새로 만들어) 아래 한 줄을 추가한다.
+`{본인_계정명}` 부분만 본인 macOS 계정명으로 바꾸면 된다.
 
 ```
 @/Users/{본인_계정명}/Documents/works/analysis-shared/CLAUDE.md
