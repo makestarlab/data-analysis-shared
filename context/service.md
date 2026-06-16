@@ -1,5 +1,15 @@
 # Makestar 서비스 도메인 지식
 
+## BQ 데이터 업데이트 주기
+
+| 테이블 종류 | 주기 | 비고 |
+|---|---|---|
+| `pg_mystarroom_public.*`, `pg_oms_public.*`, `pg_pocadb_public.*` 등 원본 CDC 테이블 | **10분** | Datastream CDC |
+| `datamart.*` | 미확정 | 별도 배치 |
+| `pocaalbum_production` | 수동 | Google Sheets 연동 |
+
+---
+
 ## 서비스 개요
 
 Makestar는 K-POP 아티스트 기반 크라우드펀딩·커머스 플랫폼.
