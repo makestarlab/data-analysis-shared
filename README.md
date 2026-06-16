@@ -17,10 +17,15 @@ git clone https://github.com/makestarlab/data-analysis-shared.git ~/Documents/wo
 ### 2. Claude Code 전역 설정
 
 `~/.claude/CLAUDE.md` 파일을 열고 (없으면 새로 만들어) 아래 한 줄을 추가한다.
-`{본인_계정명}` 부분만 본인 macOS 계정명으로 바꾸면 된다.
+경로는 1번에서 클론한 위치를 그대로 쓰면 된다.
 
 ```
-@/Users/{본인_계정명}/Documents/works/analysis-shared/CLAUDE.md
+@{레포를 클론한 경로}/CLAUDE.md
+```
+
+예시:
+```
+@/Users/hong/projects/analysis-shared/CLAUDE.md
 ```
 
 설정 후 모든 프로젝트에서 Claude Code를 열면 이 레포의 컨텍스트가 자동으로 적용된다.
