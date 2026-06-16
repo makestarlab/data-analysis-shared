@@ -313,6 +313,46 @@ next_event AS (
 
 ---
 
+## 구매 라운드 구조
+
+```
+아티스트
+ └── 라운드 (album_name 단위, 앨범 1개 = 1라운드)
+       └── 이벤트 (event_order, N차 판매)
+             └── 옵션 (버전별 — A버전, B버전, 한정판 등)
+```
+
+### 라운드 (Round)
+
+- **정의**: `album_name` 1개 = 1라운드
+- 유저의 구매 패턴은 **라운드 단위**로 추적 (이 유저가 몇 라운드 참여했는가)
+- 아티스트가 새 앨범을 낼 때마다 새 라운드가 시작
+
+### 이벤트 (event_order)
+
+- 하나의 라운드 안에서 여러 차수로 판매 (`event_order` 1차, 2차, 3차...)
+- 차수마다 이벤트 유형이 다를 수 있음 (MEET&CALL, VIDEOCALL, SHOWCASE 등)
+- 고구매력 유저일수록 더 많은 차수에 참여
+
+### 판매 유형
+
+`sales_start_at`과 `album_release_date` 비교로 구분.
+
+| 유형 | 조건 | 설명 |
+|---|---|---|
+| **Pre-order** | `sales_start_at` < `album_release_date` | 발매 전 선주문. 가장 초기 판매 |
+| **기간한정** | 특정 기간만 오픈 | `sales_start_at` ~ `sales_end_at` 범위 한정 |
+
+```sql
+-- Pre-order 이벤트 판별
+CASE
+  WHEN DATE(e.sales_start_at) < e.album_release_date THEN 'pre-order'
+  ELSE 'standard'
+END AS sale_type
+```
+
+---
+
 ## 이탈 원인 분류
 
 1. **이벤트 공급 부재**: 이탈 후 동일 아티스트 후속 이벤트 없음 → 플랫폼 책임 아님
