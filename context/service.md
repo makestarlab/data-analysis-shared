@@ -244,7 +244,72 @@ WHERE user_id NOT IN (
 
 ---
 
+## 유저 생애주기
+
+```
+가입 → 첫구매 → 반복구매 → 이벤트 공백(휴식) → 이탈 → 복귀
+```
+
+### 단계별 정의
+
+| 단계 | 정의 | 분석 기준 |
+|---|---|---|
+| **가입** | `tb_auth_user.is_certified = true` | `created_at` 기준 |
+| **첫구매** | 해당 유저의 첫 번째 결제 완료 | `MIN(DATE(pay_date))` from `total_orders` |
+| **반복구매** | 동일 아티스트 이벤트를 앨범 릴리즈 사이클에 맞춰 재구매 | 아티스트별 팬덤 단위 집계 |
+| **이벤트 공백(휴식)** | 마지막 구매 아티스트의 후속 이벤트가 아직 열리지 않은 상태. **이탈 아님** | `events_.sales_start_at` 기준으로 후속 이벤트 유무 확인 |
+| **이탈** | 후속 이벤트가 열렸음에도 구매하지 않음 | 이벤트 오픈 후 미구매 |
+| **복귀** | 이탈 후 재구매. 드물게 다른 아티스트로 전환하는 경우도 있음 | 재구매 발생 시점 |
+
+### 핵심 특수성 — 이탈 판단 기준
+
+> **단순 미구매 기간(N일)으로 이탈을 정의할 수 없음**
+>
+> 아티스트 앨범 릴리즈 주기가 불규칙하므로, 이벤트 공백 중인 유저를 이탈로 분류하면 오탐.
+> 반드시 **"후속 이벤트 오픈 이후에도 미구매"** 를 이탈 조건에 포함해야 함.
+
+```sql
+-- 이탈 판단 패턴 (이벤트 오픈 이후 미구매)
+-- 1) 유저의 마지막 구매 이벤트 → 아티스트 확인
+-- 2) 해당 아티스트의 후속 이벤트 오픈 여부 확인 (events_.sales_start_at)
+-- 3) 후속 이벤트 오픈 후에도 구매 없으면 → 이탈
+
+WITH last_purchase AS (
+  SELECT user_id, last_event_id, last_pay_date,
+    ARRAY_AGG(event_id IGNORE NULLS ORDER BY pay_date DESC LIMIT 1)[SAFE_OFFSET(0)] AS last_event_id
+  FROM `makestar-dw.datamart.total_orders`
+  WHERE market_type IN ('B2C','B2B')
+  GROUP BY user_id, last_event_id, last_pay_date
+),
+next_event AS (
+  SELECT lp.user_id, lp.last_pay_date,
+    MIN(e2.sales_start_at) AS next_event_open_at
+  FROM last_purchase lp
+  JOIN `makestar-dw.datamart.events_` e1 ON lp.last_event_id = e1.event_id
+  JOIN `makestar-dw.datamart.events_` e2
+    ON e1.artist_id = e2.artist_id
+    AND e2.sales_start_at > lp.last_pay_date
+  GROUP BY lp.user_id, lp.last_pay_date
+)
+-- 후속 이벤트가 열렸고, 그 이후에도 구매 없으면 이탈
+```
+
+### 아티스트-팬덤 단위 집계
+
+- 대부분의 유저 분석은 **아티스트별 팬덤 단위**로 의미가 있음
+- 유저 × 아티스트 조합으로 집계 (전체 유저 단위 집계 시 왜곡 발생)
+- `events_.artist_id` 기준으로 팬덤 구분
+
+### 구매력에 따른 행동 차이
+
+| 구매력 | 구매 이벤트 특성 |
+|---|---|
+| 높음 | 더 많은 판매 차수(`event_order`) 참여, 다양한 이벤트 유형, 더 많은 옵션 구매 (응모 수 극대화) |
+| 낮음 | 주요 차수(1차)만 참여, 단일 옵션 구매 |
+
+---
+
 ## 이탈 원인 분류
 
-1. **이벤트 공급 부재**: 이탈 후 동일 아티스트 후속 이벤트 없음
-2. **플랫폼 리마케팅 실패**: 후속 이벤트 있음에도 미복귀
+1. **이벤트 공급 부재**: 이탈 후 동일 아티스트 후속 이벤트 없음 → 플랫폼 책임 아님
+2. **플랫폼 리마케팅 실패**: 후속 이벤트 열렸음에도 미복귀 → 플랫폼 개입 가능 영역
