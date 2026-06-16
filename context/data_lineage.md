@@ -69,6 +69,21 @@ vw_commerce_items.sku_name_component_1  → production.project.id 또는
 
 ---
 
+## events_ 의 역할
+
+`datamart.events_`는 `total_orders` 파이프라인에 포함되지 않음.
+
+`total_orders.event_id`는 소스에서 직접 저장되며, 분석 시점에 `events_`와 조인해서 메타 정보를 보강하는 **룩업 테이블**로 사용:
+
+```sql
+-- 분석 시 이벤트 메타 조인 패턴
+SELECT t.*, e.artist_id, e.event_type, e.sales_start_at
+FROM `makestar-dw.datamart.total_orders` t
+LEFT JOIN `makestar-dw.datamart.events_` e ON t.event_id = e.event_id
+```
+
+---
+
 ## vw_commerce_orders 주요 상태값
 
 ### order_status (커머스 주문 상태)
