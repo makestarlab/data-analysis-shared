@@ -25,7 +25,7 @@ Makestar는 K-POP 아티스트 기반 크라우드펀딩·커머스 플랫폼.
 | DAU/WAU | `datamart.dau`, `datamart.wau` |
 | NRU | 신규 가입자. `tb_auth_log WHERE log_type = 0` |
 | Stickiness | DAU / MAU |
-| Churn | 90일 미구매 |
+| Churn | 미구매 기간 기준 (기준값 미확정) |
 
 ---
 

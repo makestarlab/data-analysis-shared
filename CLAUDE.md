@@ -44,6 +44,5 @@ client = bigquery.Client.from_service_account_json(
 @context/schema/makestar_pay.md
 @context/schema/tms.md
 @context/schema/production.md
-@context/segments.md
 @context/service.md
 @queries/patterns.md
