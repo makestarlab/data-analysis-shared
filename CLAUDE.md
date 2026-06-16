@@ -48,4 +48,5 @@ client = bigquery.Client.from_service_account_json(
 @context/schema/production.md
 @context/service.md
 @context/code_values.md
+@context/data_lineage.md
 @queries/patterns.md
