@@ -30,6 +30,7 @@ client = bigquery.Client.from_service_account_json(
 | `datamart` | 분석용 집계 테이블. 대부분의 분석 여기서 시작 |
 | `pg_mystarroom_public` | 메이크스타 서비스 원본 DB (Postgres CDC) |
 | `pg_oms_public` | OMS(주문관리시스템) 원본 |
+| `pg_pocadb_public` | PocaDB 포토카드 DB |
 | `production` | SPM(크라우드펀딩) 원본 |
 | `external` | 광고/외부 데이터 |
 | `analytics_*` | GA4 원본 이벤트 (앱별 분리) |
@@ -41,8 +42,10 @@ client = bigquery.Client.from_service_account_json(
 @context/schema/datamart.md
 @context/schema/pg_mystarroom.md
 @context/schema/pg_oms.md
+@context/schema/pg_pocadb.md
 @context/schema/makestar_pay.md
 @context/schema/tms.md
 @context/schema/production.md
 @context/service.md
+@context/code_values.md
 @queries/patterns.md

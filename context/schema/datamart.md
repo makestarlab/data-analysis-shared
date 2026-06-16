@@ -176,3 +176,66 @@ _자동 생성 — `scripts/refresh_schema.py` 실행으로 갱신_
 | 가입서비스 | STRING |  |
 | 배송정보 수신 | STRING |  |
 | 마케팅 제공동의 | BOOLEAN |  |
+
+---
+
+## lead_time — 쇼핑/B2B 주문 배송 리드타임
+
+B2B(`user_order_number` 'B' 접두사)·쇼핑('C' 접두사) 주문만 포함.
+코드값·기준일시 계산 규칙은 `context/code_values.md` 참조.
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| 주문번호 | STRING | tb_commerce_order.user_order_number |
+| 주문유형 | STRING | B2B/쇼핑 × 특전(POB) 여부 조합 |
+| 결제일시 | DATETIME | |
+| 발매일시 | DATETIME | mst_sku.issue_date + 10시간 |
+| 기준일시 | DATETIME | greatest(결제일시, 발매일시) + 영업시간 보정 |
+| 배송준비일시 | DATETIME | |
+| 배송준비 소요일 | FLOAT | 기준일시 → 배송준비일시 |
+| 재고할당일시 | DATETIME | |
+| 재고할당 소요일 | FLOAT | 배송준비(또는 홀딩 해제) → 재고할당 |
+| 배송요청일시 | DATETIME | |
+| 배송요청 소요일 | FLOAT | 재고할당 → 배송요청 |
+| 총 소요일 | FLOAT | 위 3단계 합계 |
+| 비고 | STRING | NULL=정상 / '재고할당 실패로 홀딩' |
+
+---
+
+## pocaalbum_orders — 포카앨범 주문
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| order_date | DATE | 주문일자 |
+| order_time | TIME | 주문일시 |
+| store_name | STRING | 매장명 |
+| product_code | STRING | 상품코드 |
+| product_name | STRING | 상품명 |
+| event_id | STRING | 이벤트 ID |
+| artist_name | STRING | 아티스트명 |
+| album_name | STRING | 앨범명 |
+| album_qty | INTEGER | 앨범 수량 |
+| order_qty | INTEGER | 구매 수량 |
+| pay_amount | FLOAT | 결제액 |
+| currency | STRING | 결제 통화 |
+
+## pocaalbum_production — 포카앨범 제작 현황
+
+Google Sheets 연동 테이블. BQ에서 직접 조회 불가 (Drive 권한 별도 필요).
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| release_date | DATE | 발매일 |
+| category | STRING | 카테고리 |
+| artist_name | STRING | 아티스트명 |
+| album_name | STRING | 앨범명 |
+| company_name | STRING | 소속사명 |
+| total_quantity | FLOAT | 누적 제작수량 |
+| memo | STRING | 비고 |
+
+## pocaalbum_circlechart — 포카앨범 써클차트
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| year | INTEGER | 연도 |
+| chart_count | FLOAT | 집계 수 |
