@@ -316,6 +316,16 @@ next_event AS (
 | 높음 | 더 많은 판매 차수(`event_order`) 참여, 다양한 이벤트 유형, 더 많은 옵션 구매 (응모 수 극대화) |
 | 낮음 | 주요 차수(1차)만 참여, 단일 옵션 구매 |
 
+## 풀세트(컬렉트 올) 구매 패턴
+
+포카 특전이 멤버별 랜덤 지급인 경우, 팬들이 **모든 멤버 포카를 모으기 위해 종류 수만큼 반복 구매**.
+
+- **포카 종류 수**: `mst_sku.virtual_child_sku_count` (부모 SKU P타입에만 존재)
+  - 트리플에스 24종, 에이티즈 16종, NMIXX 18종 등 멤버 수·버전 조합과 일치
+  - `child_sku_count_in_use`(BQ 등록 기준)는 0이 많으므로 `virtual_child_sku_count` 사용
+- **조인**: `vw_commerce_items_v2.sku_code = mst_sku.sku_code`
+- **풀세트 구매 식별**: `order_qty >= virtual_child_sku_count`
+
 ---
 
 ## 구매 라운드 구조

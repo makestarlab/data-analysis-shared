@@ -170,7 +170,7 @@ _OMS(주문관리시스템) 원본 DB. 물류·재고·SKU 관리._
 | mod_dttm | timestamp without time zone | O | 레코드 최종 수정 일시 |
 | sku_name_component_1 | character varying | O | SKU명 파싱 첫 번째 구성요소 |
 | sku_name_component_2 | character varying | O | SKU명 파싱 두 번째 구성요소 |
-| virtual_child_sku_count | integer |  | 랜덤 포토카드 등 가상 자식 수 |
+| virtual_child_sku_count | integer |  | 포카 종류 수 (멤버 수×버전). 풀세트 구매 판별 기준. child_sku_count_in_use보다 신뢰도 높음 |
 | child_sku_count_in_use | integer |  | 실제 사용 중인 자식 SKU 수 |
 | artist_id | integer |  | 아티스트 ID (FK to oms_artist) |
 | vendor_id | bigint |  | SKU 공급처 ID |
