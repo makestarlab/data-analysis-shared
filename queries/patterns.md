@@ -1,5 +1,72 @@
 # 공통 SQL 패턴
 
+## 구매대행 탐지
+
+### 신규 구매대행 후보 탐지 (distinct_ip >= 30, 목록 미등록)
+
+```sql
+SELECT
+  a.user_id,
+  b.email,
+  COUNT(DISTINCT a.ip_name)   AS distinct_ip,
+  COUNT(DISTINCT a.order_no)  AS order_cnt,
+  ROUND(SUM(a.total_revenue)) AS total_gmv
+FROM `makestar-dw.datamart.total_orders` a
+JOIN `makestar-dw.pg_mystarroom_public.tb_auth_user` b ON a.user_id = CAST(b.id AS STRING)
+WHERE a.pay_date >= '2022-01-01'
+  AND a.market_type = 'B2C'
+  AND a.user_id NOT IN (
+    -- 현재 알려진 구매대행 목록 (service.md 참조)
+    '1876860','812307','1736734','621230','1302313','1902098','859600','969308',
+    '1027784','1581799','797962','802866','1492647','781240','885795','1264675',
+    '1001311','2116643','1659287','700815','1540460','1890901','1511280','1006060',
+    '1606082','1552669','1913216','1138597','1284854','1504890','12526','944286',
+    '945344','2046425','1545878','1600974','886898','1539934','1533310','911936',
+    '1069252','971976','1658602','948579','1071325','1995221','1933087','636546',
+    '1509180','1257147','2032775','1323619','1958765','864765','1994769','209076',
+    '1608153','1312465','1355103','1248833','1506290','965150','1011224','1260938',
+    '625886','939836','1870283','1347032','1939835','1973097','2022335','1335644',
+    '1975403','646210','1542033','910047','1995697','882978','1252380','2159123',
+    '867147','942107','1329252','71764','1845002','999056','809695','1604186',
+    '1506617','1006091','870982','1895495','1052115','1313023','1254035','1063330',
+    '2050980','1550897','1660416','1620875','946338','1482920','1253405','1502990',
+    '91909','1738982','2114301','1005028','1513305','1874153','1267050','1354020',
+    '1062950','905126','1071819','1935908','1073305','1247698','898061','943715',
+    '1673444','1334025','1982712','1290379','1503928','1502504','2159410'
+  )
+GROUP BY a.user_id, b.email
+HAVING COUNT(DISTINCT a.ip_name) >= 30
+ORDER BY distinct_ip DESC, total_gmv DESC
+```
+
+### 확인된 구매대행의 이메일 도메인으로 동일 도메인 유저 검색
+
+```sql
+-- :target_email 자리에 확인된 구매대행 이메일 입력
+-- 예: 'shipkorea.kpop@gmail.com' → gmail.com은 너무 넓으므로 비즈니스 도메인에만 유효
+
+WITH target_domain AS (
+  SELECT REGEXP_EXTRACT(:target_email, r'@(.+)') AS domain
+),
+domain_users AS (
+  SELECT
+    CAST(b.id AS STRING) AS user_id,
+    b.email,
+    COUNT(DISTINCT a.ip_name)   AS distinct_ip,
+    COUNT(DISTINCT a.order_no)  AS order_cnt,
+    ROUND(SUM(a.total_revenue)) AS total_gmv
+  FROM `makestar-dw.pg_mystarroom_public.tb_auth_user` b
+  LEFT JOIN `makestar-dw.datamart.total_orders` a ON CAST(b.id AS STRING) = a.user_id
+    AND a.market_type = 'B2C'
+  WHERE REGEXP_EXTRACT(b.email, r'@(.+)') = (SELECT domain FROM target_domain)
+    AND REGEXP_EXTRACT(b.email, r'@(.+)') NOT IN ('gmail.com','naver.com','daum.net','hanmail.net','icloud.com','hotmail.com','yahoo.com','outlook.com','kakao.com')
+  GROUP BY b.id, b.email
+)
+SELECT * FROM domain_users
+WHERE order_cnt > 0
+ORDER BY total_gmv DESC
+```
+
 ## 월별 GMV / PU
 
 ```sql
