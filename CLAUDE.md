@@ -33,11 +33,16 @@ client = bigquery.Client.from_service_account_json(
 | `production` | SPM(크라우드펀딩) 원본 |
 | `external` | 광고/외부 데이터 |
 | `analytics_*` | GA4 원본 이벤트 (앱별 분리) |
+| makestar-pay | PG 결제 처리 전용 DB |
+| TMS | 배송관리시스템 (송장·배송 추적) |
 
 ---
 
 @context/schema/datamart.md
 @context/schema/pg_mystarroom.md
+@context/schema/pg_oms.md
+@context/schema/makestar_pay.md
+@context/schema/tms.md
 @context/schema/production.md
 @context/segments.md
 @context/service.md

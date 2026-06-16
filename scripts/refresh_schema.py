@@ -1,6 +1,11 @@
 """
 BigQuery에서 스키마를 읽어 context/schema/ 파일들을 자동 갱신.
 
+파일별 관리 방식:
+  [BQ 자동 갱신]  datamart.md, production.md  ← 이 스크립트로 갱신
+  [Excel 수동]    pg_mystarroom.md, pg_oms.md, makestar_pay.md, tms.md
+                  ← Makestar DB schema.xlsx 기반. 컬럼 추가 시 수동 업데이트
+
 사용법:
   source ~/bq-analysis/.venv/bin/activate
   python3 scripts/refresh_schema.py
@@ -8,13 +13,12 @@ BigQuery에서 스키마를 읽어 context/schema/ 파일들을 자동 갱신.
 
 from google.cloud import bigquery
 from pathlib import Path
-import sys
 
 KEY_PATH = "/Users/songakim/Documents/system/makestar-dw-5132eea235fa.json"
 PROJECT_ID = "makestar-dw"
 SCHEMA_DIR = Path(__file__).parent.parent / "context" / "schema"
 
-# 갱신할 테이블 목록: (dataset, table, 설명)
+# BQ에서 자동 갱신할 테이블 목록: (dataset, table, 설명)
 TABLES = {
     "datamart": [
         ("total_orders",             "GMV/결제 집계 기준"),
@@ -25,13 +29,12 @@ TABLES = {
         ("wau",                      "주별 WAU"),
         ("vw_master_order",          "주문 마스터 뷰"),
         ("vw_master_user",           "유저 마스터 뷰"),
-    ],
-    "pg_mystarroom_public": [
-        ("tb_auth_log",              "로그인/가입 로그 (NRU: log_type=0)"),
-        ("tb_commerce_order",        "결제 원본"),
-        ("tb_auth_user",             "유저 계정"),
-        ("tb_auth_user_information", "유저 프로필"),
-        ("tb_artist_artist",         "아티스트"),
+        ("commerce_events",          "커머스 이벤트"),
+        ("event_total_orders",       "이벤트별 주문 집계"),
+        ("customer_analysis_revenue","유저별 매출 분석"),
+        ("customer_analysis_signup", "유저 가입 분석"),
+        ("order_profit_b2b",         "B2B 주문 수익"),
+        ("order_profit_event",       "이벤트 주문 수익"),
     ],
     "production": [
         ("project", "SPM 프로젝트(이벤트) 원본"),
