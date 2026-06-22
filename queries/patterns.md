@@ -2,69 +2,133 @@
 
 ## 구매대행 탐지
 
-### 신규 구매대행 후보 탐지 (distinct_ip >= 30, 목록 미등록)
+`shipping_information` JSONB 기반 데이터 드리븐 탐지.
+동일 창고주소(base_address)에 개인식별코드(detail_address) 3개 이상 + 아티스트 2개 이상.
 
 ```sql
-SELECT
-  a.user_id,
-  b.email,
-  COUNT(DISTINCT a.ip_name)   AS distinct_ip,
-  COUNT(DISTINCT a.order_no)  AS order_cnt,
-  ROUND(SUM(a.total_revenue)) AS total_gmv
-FROM `makestar-dw.datamart.total_orders` a
-JOIN `makestar-dw.pg_mystarroom_public.tb_auth_user` b ON a.user_id = CAST(b.id AS STRING)
-WHERE a.pay_date >= '2022-01-01'
-  AND a.market_type = 'B2C'
-  AND a.user_id NOT IN (
-    -- 현재 알려진 구매대행 목록 (service.md 참조)
-    '1876860','812307','1736734','621230','1302313','1902098','859600','969308',
-    '1027784','1581799','797962','802866','1492647','781240','885795','1264675',
-    '1001311','2116643','1659287','700815','1540460','1890901','1511280','1006060',
-    '1606082','1552669','1913216','1138597','1284854','1504890','12526','944286',
-    '945344','2046425','1545878','1600974','886898','1539934','1533310','911936',
-    '1069252','971976','1658602','948579','1071325','1995221','1933087','636546',
-    '1509180','1257147','2032775','1323619','1958765','864765','1994769','209076',
-    '1608153','1312465','1355103','1248833','1506290','965150','1011224','1260938',
-    '625886','939836','1870283','1347032','1939835','1973097','2022335','1335644',
-    '1975403','646210','1542033','910047','1995697','882978','1252380','2159123',
-    '867147','942107','1329252','71764','1845002','999056','809695','1604186',
-    '1506617','1006091','870982','1895495','1052115','1313023','1254035','1063330',
-    '2050980','1550897','1660416','1620875','946338','1482920','1253405','1502990',
-    '91909','1738982','2114301','1005028','1513305','1874153','1267050','1354020',
-    '1062950','905126','1071819','1935908','1073305','1247698','898061','943715',
-    '1673444','1334025','1982712','1290379','1503928','1502504','2159410'
-  )
-GROUP BY a.user_id, b.email
-HAVING COUNT(DISTINCT a.ip_name) >= 30
-ORDER BY distinct_ip DESC, total_gmv DESC
+-- Step 1: 창고주소별 고객코드 수 집계
+WITH order_shipping AS (
+  SELECT
+    user_id,
+    TRIM(JSON_EXTRACT_SCALAR(shipping_information, '$.information.address'))        AS base_address,
+    TRIM(JSON_EXTRACT_SCALAR(shipping_information, '$.information.detail_address')) AS customer_code
+  FROM `makestar-dw.pg_mystarroom_public.tb_commerce_order`
+  WHERE payment_status = 'CONFIRMED'
+    AND user_id IS NOT NULL
+    AND shipping_information IS NOT NULL
+),
+-- 동일 창고주소에 고객코드 3개 이상인 계정
+purchasing_candidates AS (
+  SELECT user_id
+  FROM order_shipping
+  WHERE customer_code IS NOT NULL AND TRIM(customer_code) != ''
+    AND base_address  IS NOT NULL AND TRIM(base_address)  != ''
+  GROUP BY user_id, base_address
+  HAVING COUNT(DISTINCT customer_code) >= 3
+),
+-- 아티스트 2개 이상 구매
+multi_artist AS (
+  SELECT o.user_id
+  FROM `makestar-dw.datamart.total_orders` o
+  LEFT JOIN `makestar-dw.datamart.events_` e ON o.event_id = e.event_id
+  WHERE o.market_type = 'B2C'
+    AND DATE(o.pay_date) >= '2025-01-01'
+    AND e.artist_id IS NOT NULL
+  GROUP BY o.user_id
+  HAVING COUNT(DISTINCT e.artist_id) >= 2
+),
+-- 최종 구매대행 유저 목록
+purchasing_users AS (
+  SELECT DISTINCT CAST(p.user_id AS STRING) AS uid
+  FROM purchasing_candidates p
+  JOIN multi_artist m ON m.user_id = CAST(p.user_id AS STRING)
+)
+SELECT uid FROM purchasing_users
 ```
 
-### 확인된 구매대행의 이메일 도메인으로 동일 도메인 유저 검색
+> `shipping_information` 데이터는 2025-01 이전 구간 신뢰도 낮음 → 기준일 `>= '2025-01-01'` 권장.
+> 쿼리 전문 및 상위 유저 목록: `bq-analysis/queries/multi_account/01_purchasing_agent_detection.sql`
+
+---
+
+## 배송대행 탐지
+
+해외 주문자가 한국 창고로 배송받는 패턴 + 키워드/코드/주소공유 필터.
 
 ```sql
--- :target_email 자리에 확인된 구매대행 이메일 입력
--- 예: 'shipkorea.kpop@gmail.com' → gmail.com은 너무 넓으므로 비즈니스 도메인에만 유효
-
-WITH target_domain AS (
-  SELECT REGEXP_EXTRACT(:target_email, r'@(.+)') AS domain
+-- Step 1: 배대지 기본 후보 (해외 주문 → 한국 배송)
+WITH fwd_base AS (
+  SELECT DISTINCT
+    o.user_id,
+    o.order_country_code,
+    JSON_EXTRACT_SCALAR(c.shipping_information, '$.information.address')        AS addr,
+    JSON_EXTRACT_SCALAR(c.shipping_information, '$.information.detail_address') AS detail,
+    c.recipient_name
+  FROM `makestar-dw.datamart.total_orders` o
+  JOIN `makestar-dw.pg_mystarroom_public.tb_commerce_order` c ON c.order_number = o.order_no
+  WHERE o.order_country_code  != 'KR'     -- 주문자가 해외
+    AND o.shipping_country_code = 'KR'    -- 배송지는 한국 (배대지 창고)
+    AND o.market_type           = 'B2C'
+    AND o.channel_type          = '메이크스타웹'
+    AND DATE(o.pay_date)       >= '2025-01-01'
+    AND c.payment_status        = 'CONFIRMED'
 ),
-domain_users AS (
-  SELECT
-    CAST(b.id AS STRING) AS user_id,
-    b.email,
-    COUNT(DISTINCT a.ip_name)   AS distinct_ip,
-    COUNT(DISTINCT a.order_no)  AS order_cnt,
-    ROUND(SUM(a.total_revenue)) AS total_gmv
-  FROM `makestar-dw.pg_mystarroom_public.tb_auth_user` b
-  LEFT JOIN `makestar-dw.datamart.total_orders` a ON CAST(b.id AS STRING) = a.user_id
-    AND a.market_type = 'B2C'
-  WHERE REGEXP_EXTRACT(b.email, r'@(.+)') = (SELECT domain FROM target_domain)
-    AND REGEXP_EXTRACT(b.email, r'@(.+)') NOT IN ('gmail.com','naver.com','daum.net','hanmail.net','icloud.com','hotmail.com','yahoo.com','outlook.com','kakao.com')
-  GROUP BY b.id, b.email
+-- Step 2: 동일 주소를 3명+ 공유하는 주소 = 배대지 창고
+shared_addresses AS (
+  SELECT addr
+  FROM fwd_base
+  WHERE addr IS NOT NULL
+  GROUP BY addr
+  HAVING COUNT(DISTINCT user_id) >= 3
+),
+-- Step 3: 키워드/코드패턴 OR 주소공유 해당 유저만 추출
+forwarding_users AS (
+  SELECT DISTINCT b.user_id
+  FROM fwd_base b
+  LEFT JOIN shared_addresses s ON s.addr = b.addr
+  WHERE
+    -- 배대지 서비스 키워드 (주소·상세주소·수취인명 통합 검색)
+    REGEXP_CONTAINS(
+      COALESCE(b.addr,'') || ' ' || COALESCE(b.detail,'') || ' ' || COALESCE(b.recipient_name,''),
+      r'logistics|forwarding|warehouse|unun|물류|국제|배송대행|창고|글로벌|international|배대지|포워딩|album.?buddy'
+    )
+    -- 개인식별코드 패턴 (상세주소·수취인명)
+    OR REGEXP_CONTAINS(
+      COALESCE(b.detail,'') || ' ' || COALESCE(b.recipient_name,''),
+      r'#[A-Z0-9]{4,}|[A-Z]{2,}[0-9]{5,}|Suite\s*[A-Z0-9]{3,}|(MZ|EK|DRV|TAI|SJH|MOI|PLT|SGN|KR2ME)-[0-9A-Z]{2,}'
+    )
+    -- 동일 주소 공유 (3명 이상)
+    OR s.addr IS NOT NULL
 )
-SELECT * FROM domain_users
-WHERE order_cnt > 0
-ORDER BY total_gmv DESC
+SELECT DISTINCT user_id FROM forwarding_users
+```
+
+> 쿼리 전문: `bq-analysis/queries/multi_account/02_forwarding_agent_detection.sql`
+
+---
+
+## 구매대행·배송대행 분리 레이블 CTE
+
+두 유형을 동시에 탐지하고 일반 유저와 구분할 때 사용하는 공통 패턴.
+
+```sql
+-- purchasing_users, forwarding_users CTE 위에서 정의된 이후
+user_labels AS (
+  SELECT
+    u.user_id,
+    CASE
+      WHEN pu.uid IS NOT NULL THEN 'purchasing'  -- 구매대행
+      WHEN fu.uid IS NOT NULL THEN 'forwarding'  -- 배송대행
+      ELSE 'general'                             -- 일반
+    END AS user_type
+  FROM (
+    SELECT DISTINCT user_id FROM `makestar-dw.datamart.total_orders`
+    WHERE market_type = 'B2C' AND channel_type = '메이크스타웹'
+      AND DATE(pay_date) >= '2025-01-01'
+  ) u
+  LEFT JOIN purchasing_users pu ON pu.uid = u.user_id
+  LEFT JOIN forwarding_users fu ON fu.uid = u.user_id
+)
 ```
 
 ## 월별 GMV / PU
