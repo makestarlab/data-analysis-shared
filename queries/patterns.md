@@ -244,3 +244,104 @@ WHERE is_certified = true
 GROUP BY 1
 ORDER BY 1
 ```
+
+---
+
+## 상품·SKU 조인 패턴
+
+### 기본 조인 경로
+
+주문에서 SKU 정보까지 가는 표준 경로.
+
+```sql
+FROM `makestar-dw.datamart.total_orders` o
+LEFT JOIN `makestar-dw.datamart.vw_commerce_items_v2` i
+       ON o.event_id    = i.product_event_code
+      AND o.option_code = i.product_option_id
+LEFT JOIN `makestar-dw.pg_oms_public.mst_sku` s
+       ON i.sku_code = s.sku_code
+```
+
+> `vw_commerce_items_v2`는 `new_commerce_db` 기반. `data_source = 'new_commerce_db'` 주문에만 유효한 조인.
+> 구형 주문(`old_commerce_db`)은 이 경로로 SKU 정보를 가져올 수 없음.
+
+---
+
+### SKU 타입 (`mst_sku.sku_type`)
+
+| 값 | 의미 | 분석 시 처리 |
+|---|---|---|
+| `P` (parent) | 랜덤 포카 상품 — `virtual_child_sku_count` 보유 | 포카 종류 수 분석 대상 |
+| `C` (child) | 랜덤 포카의 실제 개별 카드 | 주문 수량 집계 시 **제외** (중복 계산됨) |
+| `NULL` | 조인 안 된 일반 상품 | 포함. `virtual_child_sku_count = 1`로 처리 |
+
+```sql
+-- child SKU 제외 패턴
+WHERE s.sku_type IS NULL OR s.sku_type = 'P'
+```
+
+---
+
+### `virtual_child_sku_count` — 포카 전종 수
+
+랜덤 포카 상품(`sku_type = 'P'`)의 멤버·버전 종류 수. 팬이 전종을 모으려면 이 수만큼 구매해야 함.
+
+- 트리플에스 24종, 에이티즈 16종 등 아티스트 멤버 수 × 버전 조합
+- `child_sku_count_in_use`는 0인 경우가 많아 신뢰도 낮음 → **`virtual_child_sku_count` 사용**
+- `virtual_child_sku_count = 0` 또는 `NULL` → 랜덤 포카 아닌 일반/응모권 상품
+
+```sql
+-- 포카 상품만 필터
+WHERE s.sku_type = 'P' AND s.virtual_child_sku_count > 1
+```
+
+---
+
+### POB 응모권 상품 구분
+
+| 상품 유형 | 조건 | 설명 |
+|---|---|---|
+| POB 포함 주문 | `total_orders.event_id IS NOT NULL` | 이벤트 응모권이 묶인 주문 |
+| 응모권 상품 라인 | `vw_commerce_order_items.product_event_type = '이벤트'` | 라인아이템 단위 응모권 |
+| 응모권/일반 상품 (SKU 기준) | `sku_type IS NULL OR sku_type = 'C'` | 포카 P타입 아닌 상품 |
+| 포카 아닌 상품 (SKU 기준) | `virtual_child_sku_count IS NULL OR virtual_child_sku_count = 0` | 응모권·일반 앨범 등 |
+
+> POB 상품은 `event_id IS NOT NULL`로 식별하고, 포카 vs 응모권은 `sku_type` + `virtual_child_sku_count`로 구분.
+
+---
+
+### 앨범 수량 (`order_album_qty`) 계산 구조
+
+`total_orders.order_album_qty`는 아래 경로로 산출된 파생 컬럼.
+
+```
+order_qty × vw_product_option_info.sales_qty
+  WHERE content_sales_base = 'true'
+```
+
+`sales_qty` = 옵션 1개당 포함된 앨범 수. 예: "2장 세트" 옵션이면 `sales_qty = 2`.
+
+---
+
+### 라운드 (Round) 단위 분석
+
+팬의 구매 패턴은 **아티스트 × 앨범(라운드) 단위**로 의미가 있음.
+
+| 단위 | 정의 | 컬럼 |
+|---|---|---|
+| 라운드 | 앨범 1개 = 1라운드 | `events_.album_name` |
+| 이벤트 차수 | 같은 앨범 내 판매 회차 | `events_.event_order` |
+| 발매일 | 라운드 시작 기준 | `DATE(vw_commerce_items_v2.product_release_at + INTERVAL 9 HOUR)` |
+
+```sql
+-- 유저별 아티스트당 참여 라운드 수
+SELECT
+  o.user_id,
+  e.artist_id,
+  COUNT(DISTINCT e.album_name) AS rounds_participated
+FROM `makestar-dw.datamart.total_orders` o
+LEFT JOIN `makestar-dw.datamart.events_` e ON o.event_id = e.event_id
+WHERE o.market_type IN ('B2C','B2B')
+  AND e.artist_id IS NOT NULL
+GROUP BY 1,2
+```
