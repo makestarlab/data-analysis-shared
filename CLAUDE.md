@@ -32,4 +32,5 @@ Makestar 데이터 분석을 위한 공유 프레임워크. 스키마, 도메인
 @context/service.md
 @context/code_values.md
 @context/data_lineage.md
+@context/data_model.md
 @queries/patterns.md
