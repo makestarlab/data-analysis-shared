@@ -127,7 +127,7 @@ _OMS(주문관리시스템) 원본 DB. 물류·재고·SKU 관리._
 | order_line_item_no | integer | O | 주문 내 상품 순번 |
 | parcel_number | character varying | O | 할당된 소포 번호 |
 | product_code | character varying |  | 메이크스타 상품 코드 |
-| product_type | character varying |  | 상품 유형 (PRODUCT/PROJECT 등) |
+| product_type | character varying |  | 채널 유형 — NCM_EVENT / NCM_SHOPPING / SHOPPING / NCM_FUNDING (아래 코드값 참조) |
 | option_code | character varying | O | 상품 옵션/리워드 코드 |
 | sku_line_item_no | integer | O | SKU 항목 순번 |
 | sku_code | character varying |  | 할당된 SKU 코드 |
