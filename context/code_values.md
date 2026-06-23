@@ -199,6 +199,29 @@ BQ에서 실측한 값 목록. 의미 미확정 항목은 별도 표기.
 
 ## pg_oms_public
 
+### oms_order_line_item_sku.product_type (실측)
+채널 구분의 핵심. `order_no` 접두사와 함께 사용해야 B2C/B2B 구분 가능.
+
+| 값 | order_no 접두사 | 실제 채널 | 주의 |
+|---|---|---|---|
+| `NCM_EVENT` | `E-` | 이벤트 주문 | |
+| `NCM_SHOPPING` | `B-` (70%), `C-` (30%) | B2B + B2C 혼재 | B2B 구분 필요 |
+| `SHOPPING` | `B`, `S` | B2B + 쇼핑 구형 | total_orders 조인 시 B2B로 매핑됨 |
+| `NCM_FUNDING` | `C-` | 크라우드펀딩 | |
+
+> **B2C 쇼핑만 필터**: `product_type IN ('NCM_SHOPPING') AND order_no LIKE 'C-%'`
+> **이벤트만 필터**: `order_no LIKE 'E-%'`
+> OMS order_no(E-xxx, B-xxx)와 커머스 order_no(C25xxx)는 **별개 체계 — JOIN 불가**
+
+### oms_order_line_item_sku.order_no 접두사 (실측)
+
+| 접두사 | 채널 |
+|---|---|
+| `E-` | 이벤트 주문 |
+| `B-` | B2B 도매 주문 (NCM_SHOPPING에 혼재) |
+| `C-` | 쇼핑 B2C 주문 |
+| `S` | 쇼핑 구형 |
+
 ### oms_order.order_status
 | 값 | 건수 |
 |---|---|
@@ -241,6 +264,25 @@ BQ에서 실측한 값 목록. 의미 미확정 항목은 별도 표기.
 | C | 자식 SKU (실제 개별 카드) |
 
 > `child_sku_count_in_use = 0`인 SKU가 실제 재고 집계 대상(leaf SKU)
+
+### total_orders.order_no 접두사 (실측)
+`total_orders.order_no` 첫 글자로 채널 구분 가능. B2C/B2B 필터에 활용.
+
+| 접두사 | market_type | biz_type | 설명 |
+|---|---|---|---|
+| `C` | B2C | 이벤트/쇼핑/해외 | B2C 커머스 주문 (주력) |
+| `P` | B2C | 이벤트/중국/해외 | B2C 구형 또는 특정 채널 |
+| `B` | B2B + B2C 혼재 | B2B/이벤트/기타 | B2B 주력, B2C 소수 혼재 |
+| `S` | B2C | 쇼핑/일본 | B2C 쇼핑 구형 |
+| `M` | B2C | 중국/쇼핑 | 위챗 계열 |
+| `E` | B2B | B2B | B2B 이벤트 |
+| `8`, `9`, `1` | B2C | 중국/일본 | 오프라인/외부 채널 |
+
+```sql
+-- B2C 쇼핑 필터 (order_no 기준)
+WHERE order_no LIKE 'C%' OR order_no LIKE 'S%'
+-- B접두사는 B2B 주력이나 B2C 소수 혼재 → market_type 이중 확인 권장
+```
 
 ### tb_commerce_order.user_order_number 접두사
 주문 유형을 구분하는 핵심 규칙. 다수의 쿼리에서 사용.
