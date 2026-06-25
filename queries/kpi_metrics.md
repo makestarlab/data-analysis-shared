@@ -538,6 +538,184 @@ LEFT JOIN returned r USING (user_id, artist_id)
 
 ---
 
+## 아티스트별 매출
+
+### 아티스트 × 라운드별 GMV / PU / ARPPU / 판매량
+
+```sql
+WITH artist_round_sales AS (
+  SELECT
+    e.artist_id,
+    e.album_name,
+    MIN(DATE(e.sales_start_at, 'Asia/Seoul'))                    AS round_open_date,
+    SUM(o.total_revenue)                                         AS gmv,
+    SUM(o.order_album_qty)                                       AS album_qty,
+    COUNT(DISTINCT o.user_id)                                    AS pu,
+    SAFE_DIVIDE(SUM(o.total_revenue), COUNT(DISTINCT o.user_id)) AS arppu
+  FROM `makestar-dw.datamart.total_orders` o
+  JOIN `makestar-dw.datamart.events_` e ON o.event_id = e.event_id
+  WHERE o.market_type IN ('B2C', 'B2B')
+    AND e.artist_id IS NOT NULL
+    AND e.album_name IS NOT NULL
+  GROUP BY 1, 2
+),
+round_seq AS (
+  SELECT
+    artist_id,
+    album_name,
+    ROW_NUMBER() OVER(
+      PARTITION BY artist_id ORDER BY MIN(round_open_date)
+    )                                                            AS round_num
+  FROM artist_round_sales
+  GROUP BY 1, 2
+),
+artist_name AS (
+  -- artist_id → artist_name 정규화 (vw_commerce_items_v2 기준)
+  SELECT DISTINCT artist_id, artist_name
+  FROM `makestar-dw.datamart.vw_commerce_items_v2`
+  WHERE artist_id IS NOT NULL AND artist_name IS NOT NULL
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY artist_id ORDER BY artist_name) = 1
+)
+SELECT
+  ars.artist_id,
+  an.artist_name,
+  rs.round_num,
+  ars.album_name                                                 AS round_name,
+  ars.round_open_date,
+  ROUND(ars.gmv)                                                AS gmv,
+  ars.pu,
+  ROUND(ars.arppu)                                              AS arppu,
+  ROUND(ars.album_qty)                                          AS album_qty
+FROM artist_round_sales ars
+JOIN round_seq rs USING (artist_id, album_name)
+LEFT JOIN artist_name an USING (artist_id)
+ORDER BY ars.gmv DESC, rs.round_num
+```
+
+---
+
+### 아티스트별 라운드 간 증감 (N vs N-1)
+
+```sql
+WITH artist_round_sales AS (
+  SELECT
+    e.artist_id,
+    e.album_name,
+    MIN(DATE(e.sales_start_at, 'Asia/Seoul'))                    AS round_open_date,
+    SUM(o.total_revenue)                                         AS gmv,
+    SUM(o.order_album_qty)                                       AS album_qty,
+    COUNT(DISTINCT o.user_id)                                    AS pu,
+    SAFE_DIVIDE(SUM(o.total_revenue), COUNT(DISTINCT o.user_id)) AS arppu
+  FROM `makestar-dw.datamart.total_orders` o
+  JOIN `makestar-dw.datamart.events_` e ON o.event_id = e.event_id
+  WHERE o.market_type IN ('B2C', 'B2B')
+    AND e.artist_id IS NOT NULL
+    AND e.album_name IS NOT NULL
+  GROUP BY 1, 2
+),
+round_seq AS (
+  SELECT
+    artist_id, album_name,
+    ROW_NUMBER() OVER(PARTITION BY artist_id ORDER BY MIN(round_open_date)) AS round_num
+  FROM artist_round_sales
+  GROUP BY 1, 2
+),
+artist_name AS (
+  SELECT DISTINCT artist_id, artist_name
+  FROM `makestar-dw.datamart.vw_commerce_items_v2`
+  WHERE artist_id IS NOT NULL AND artist_name IS NOT NULL
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY artist_id ORDER BY artist_name) = 1
+),
+base AS (
+  SELECT
+    ars.artist_id,
+    an.artist_name,
+    rs.round_num,
+    ars.album_name                                               AS round_name,
+    ars.round_open_date,
+    ars.gmv,
+    ars.pu,
+    ars.arppu,
+    ars.album_qty
+  FROM artist_round_sales ars
+  JOIN round_seq rs USING (artist_id, album_name)
+  LEFT JOIN artist_name an USING (artist_id)
+)
+SELECT
+  artist_id,
+  artist_name,
+  round_num,
+  round_name,
+  round_open_date,
+  ROUND(gmv)                                                    AS gmv,
+  ROUND(LAG(gmv) OVER(PARTITION BY artist_id ORDER BY round_num)) AS prev_gmv,
+  CONCAT(CAST(ROUND(SAFE_DIVIDE(
+    gmv - LAG(gmv) OVER(PARTITION BY artist_id ORDER BY round_num),
+    LAG(gmv) OVER(PARTITION BY artist_id ORDER BY round_num)
+  ) * 100) AS INT64), '%')                                      AS gmv_growth,
+  pu,
+  LAG(pu) OVER(PARTITION BY artist_id ORDER BY round_num)       AS prev_pu,
+  CONCAT(CAST(ROUND(SAFE_DIVIDE(
+    pu - LAG(pu) OVER(PARTITION BY artist_id ORDER BY round_num),
+    LAG(pu) OVER(PARTITION BY artist_id ORDER BY round_num)
+  ) * 100) AS INT64), '%')                                      AS pu_growth,
+  ROUND(arppu)                                                  AS arppu,
+  ROUND(album_qty)                                              AS album_qty
+FROM base
+ORDER BY gmv DESC, round_num
+```
+
+---
+
+### 특정 아티스트 라운드별 상세 (아티스트 지정)
+
+```sql
+DECLARE target_artist_id STRING DEFAULT 'A001';  -- artist_id로 교체
+
+WITH event_sales AS (
+  SELECT
+    e.event_id,
+    e.event_name,
+    e.album_name,
+    e.event_order,
+    e.event_type,
+    DATE(e.sales_start_at, 'Asia/Seoul')                         AS open_date,
+    DATE(e.sales_end_at, 'Asia/Seoul')                           AS close_date,
+    SUM(o.total_revenue)                                         AS gmv,
+    SUM(o.order_album_qty)                                       AS album_qty,
+    COUNT(DISTINCT o.user_id)                                    AS pu,
+    SAFE_DIVIDE(SUM(o.total_revenue), COUNT(DISTINCT o.user_id)) AS arppu
+  FROM `makestar-dw.datamart.total_orders` o
+  JOIN `makestar-dw.datamart.events_` e ON o.event_id = e.event_id
+  WHERE o.market_type IN ('B2C', 'B2B')
+    AND e.artist_id = target_artist_id
+  GROUP BY 1, 2, 3, 4, 5, 6, 7
+),
+round_seq AS (
+  SELECT DISTINCT album_name,
+    ROW_NUMBER() OVER(ORDER BY MIN(open_date)) AS round_num
+  FROM event_sales
+  GROUP BY album_name
+)
+SELECT
+  rs.round_num,
+  es.album_name                                                  AS round_name,
+  es.event_order,
+  es.event_type,
+  es.event_name,
+  es.open_date,
+  es.close_date,
+  ROUND(es.gmv)                                                 AS gmv,
+  es.pu,
+  ROUND(es.arppu)                                               AS arppu,
+  ROUND(es.album_qty)                                           AS album_qty
+FROM event_sales es
+JOIN round_seq rs USING (album_name)
+ORDER BY rs.round_num, es.event_order
+```
+
+---
+
 ## 이벤트 성과
 
 ### 지난주 종료 이벤트 (리워드매출 · 판매량)
