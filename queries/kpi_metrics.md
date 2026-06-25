@@ -716,6 +716,235 @@ ORDER BY rs.round_num, es.event_order
 
 ---
 
+## 이벤트 타입별 매출
+
+### 월별 이벤트 타입별 GMV
+
+```sql
+SELECT
+  DATE_TRUNC(DATE(o.pay_date, 'Asia/Seoul'), MONTH)              AS month,
+  e.event_type,
+  SUM(o.total_revenue)                                           AS gmv,
+  COUNT(DISTINCT o.user_id)                                      AS pu,
+  COUNT(DISTINCT o.event_id)                                     AS event_count,
+  SAFE_DIVIDE(SUM(o.total_revenue), COUNT(DISTINCT o.event_id))  AS gmv_per_event,
+  SAFE_DIVIDE(SUM(o.total_revenue), COUNT(DISTINCT o.user_id))   AS arppu
+FROM `makestar-dw.datamart.total_orders` o
+JOIN `makestar-dw.datamart.events_` e ON o.event_id = e.event_id
+WHERE o.market_type IN ('B2C', 'B2B')
+  AND e.event_type IS NOT NULL
+  AND DATE(o.pay_date, 'Asia/Seoul') >= '2025-01-01'
+GROUP BY 1, 2
+ORDER BY 1, 3 DESC
+```
+
+### 아티스트 × 이벤트 타입별 GMV
+
+```sql
+WITH artist_name AS (
+  SELECT DISTINCT artist_id, artist_name
+  FROM `makestar-dw.datamart.vw_commerce_items_v2`
+  WHERE artist_id IS NOT NULL AND artist_name IS NOT NULL
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY artist_id ORDER BY artist_name) = 1
+)
+SELECT
+  e.artist_id,
+  an.artist_name,
+  e.event_type,
+  SUM(o.total_revenue)                                           AS gmv,
+  COUNT(DISTINCT o.order_no)                                     AS order_count,
+  COUNT(DISTINCT o.user_id)                                      AS pu,
+  SAFE_DIVIDE(SUM(o.total_revenue), COUNT(DISTINCT o.user_id))   AS arppu,
+  SUM(o.order_album_qty)                                         AS album_qty
+FROM `makestar-dw.datamart.total_orders` o
+JOIN `makestar-dw.datamart.events_` e ON o.event_id = e.event_id
+LEFT JOIN artist_name an USING (artist_id)
+WHERE o.market_type IN ('B2C', 'B2B')
+  AND e.artist_id IS NOT NULL
+  AND e.event_type IS NOT NULL
+GROUP BY 1, 2, 3
+ORDER BY 4 DESC
+```
+
+---
+
+## 주문/유저 단위 지표
+
+### 주문당 단가 (AOV)
+
+```sql
+SELECT
+  DATE_TRUNC(DATE(pay_date, 'Asia/Seoul'), MONTH)                AS month,
+  COUNT(DISTINCT order_no)                                       AS order_count,
+  ROUND(SAFE_DIVIDE(SUM(total_revenue),
+        COUNT(DISTINCT order_no)))                               AS aov,
+  ROUND(SAFE_DIVIDE(SUM(product_revenue),
+        COUNT(DISTINCT order_no)))                               AS product_aov,
+  ROUND(SAFE_DIVIDE(SUM(shipping_revenue),
+        COUNT(DISTINCT order_no)))                               AS shipping_aov
+FROM `makestar-dw.datamart.total_orders`
+WHERE market_type IN ('B2C', 'B2B')
+  AND DATE(pay_date, 'Asia/Seoul') >= '2025-01-01'
+GROUP BY 1
+ORDER BY 1
+```
+
+### 유저당 최대 · 평균 · 분위 매출
+
+```sql
+WITH user_revenue AS (
+  SELECT
+    user_id,
+    SUM(total_revenue)    AS ltv,
+    COUNT(DISTINCT order_no) AS order_count
+  FROM `makestar-dw.datamart.total_orders`
+  WHERE market_type IN ('B2C', 'B2B')
+  GROUP BY 1
+)
+SELECT
+  COUNT(*)                                                       AS total_users,
+  ROUND(MAX(ltv))                                               AS max_user_revenue,
+  ROUND(AVG(ltv))                                               AS avg_user_revenue,
+  ROUND(APPROX_QUANTILES(ltv, 100)[OFFSET(50)])                 AS median_user_revenue,
+  ROUND(APPROX_QUANTILES(ltv, 100)[OFFSET(75)])                 AS p75_user_revenue,
+  ROUND(APPROX_QUANTILES(ltv, 100)[OFFSET(90)])                 AS p90_user_revenue,
+  ROUND(APPROX_QUANTILES(ltv, 100)[OFFSET(99)])                 AS p99_user_revenue,
+  ROUND(AVG(order_count), 1)                                    AS avg_orders_per_user
+FROM user_revenue
+```
+
+### 아티스트별 유저당 최대 · 평균 매출
+
+```sql
+WITH artist_name AS (
+  SELECT DISTINCT artist_id, artist_name
+  FROM `makestar-dw.datamart.vw_commerce_items_v2`
+  WHERE artist_id IS NOT NULL AND artist_name IS NOT NULL
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY artist_id ORDER BY artist_name) = 1
+),
+user_artist_revenue AS (
+  SELECT
+    o.user_id,
+    e.artist_id,
+    SUM(o.total_revenue)     AS revenue,
+    COUNT(DISTINCT o.order_no) AS order_count
+  FROM `makestar-dw.datamart.total_orders` o
+  JOIN `makestar-dw.datamart.events_` e ON o.event_id = e.event_id
+  WHERE o.market_type IN ('B2C', 'B2B')
+    AND e.artist_id IS NOT NULL
+  GROUP BY 1, 2
+)
+SELECT
+  uar.artist_id,
+  an.artist_name,
+  COUNT(DISTINCT uar.user_id)                                    AS pu,
+  ROUND(SUM(uar.revenue))                                       AS gmv,
+  ROUND(MAX(uar.revenue))                                       AS max_user_revenue,
+  ROUND(AVG(uar.revenue))                                       AS avg_user_revenue,
+  ROUND(APPROX_QUANTILES(uar.revenue, 100)[OFFSET(50)])         AS median_user_revenue,
+  ROUND(AVG(uar.order_count), 1)                                AS avg_orders_per_user
+FROM user_artist_revenue uar
+LEFT JOIN artist_name an USING (artist_id)
+GROUP BY 1, 2
+ORDER BY 4 DESC
+```
+
+---
+
+## 아티스트 × 이벤트별 상세
+
+### 아티스트 × 이벤트별 전체 지표
+
+```sql
+WITH artist_name AS (
+  SELECT DISTINCT artist_id, artist_name
+  FROM `makestar-dw.datamart.vw_commerce_items_v2`
+  WHERE artist_id IS NOT NULL AND artist_name IS NOT NULL
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY artist_id ORDER BY artist_name) = 1
+),
+round_seq AS (
+  SELECT
+    artist_id,
+    album_name,
+    ROW_NUMBER() OVER(
+      PARTITION BY artist_id
+      ORDER BY MIN(DATE(sales_start_at, 'Asia/Seoul'))
+    )                                                            AS round_num
+  FROM `makestar-dw.datamart.events_`
+  WHERE artist_id IS NOT NULL AND album_name IS NOT NULL
+  GROUP BY 1, 2
+)
+SELECT
+  e.artist_id,
+  an.artist_name,
+  rs.round_num,
+  e.album_name                                                   AS round_name,
+  e.event_order,
+  e.event_type,
+  e.event_id,
+  e.event_name,
+  DATE(e.sales_start_at, 'Asia/Seoul')                           AS open_date,
+  DATE(e.sales_end_at, 'Asia/Seoul')                             AS close_date,
+  ROUND(SUM(o.total_revenue))                                   AS gmv,
+  COUNT(DISTINCT o.order_no)                                     AS order_count,
+  ROUND(SAFE_DIVIDE(SUM(o.total_revenue),
+        COUNT(DISTINCT o.order_no)))                             AS aov,
+  COUNT(DISTINCT o.user_id)                                      AS pu,
+  ROUND(SAFE_DIVIDE(SUM(o.total_revenue),
+        COUNT(DISTINCT o.user_id)))                              AS arppu,
+  ROUND(MAX(SUM(o.total_revenue)) OVER(
+    PARTITION BY e.artist_id, o.user_id))                        AS max_user_revenue,
+  ROUND(SUM(o.order_album_qty))                                 AS album_qty
+FROM `makestar-dw.datamart.total_orders` o
+JOIN `makestar-dw.datamart.events_` e ON o.event_id = e.event_id
+LEFT JOIN artist_name an USING (artist_id)
+LEFT JOIN round_seq rs USING (artist_id, album_name)
+WHERE o.market_type IN ('B2C', 'B2B')
+  AND e.artist_id IS NOT NULL
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+ORDER BY gmv DESC
+```
+
+### 특정 아티스트 이벤트별 라운드 비교 (세로)
+
+```sql
+DECLARE target_artist_id STRING DEFAULT 'A001';
+
+WITH round_seq AS (
+  SELECT album_name,
+    ROW_NUMBER() OVER(ORDER BY MIN(DATE(sales_start_at, 'Asia/Seoul'))) AS round_num
+  FROM `makestar-dw.datamart.events_`
+  WHERE artist_id = target_artist_id AND album_name IS NOT NULL
+  GROUP BY 1
+)
+SELECT
+  rs.round_num,
+  e.album_name                                                   AS round_name,
+  e.event_order,
+  e.event_type,
+  DATE(e.sales_start_at, 'Asia/Seoul')                           AS open_date,
+  ROUND(SUM(o.total_revenue))                                   AS gmv,
+  ROUND(LAG(SUM(o.total_revenue)) OVER(
+    PARTITION BY e.album_name ORDER BY e.event_order))           AS prev_event_gmv,
+  COUNT(DISTINCT o.order_no)                                     AS order_count,
+  ROUND(SAFE_DIVIDE(SUM(o.total_revenue),
+        COUNT(DISTINCT o.order_no)))                             AS aov,
+  COUNT(DISTINCT o.user_id)                                      AS pu,
+  ROUND(SAFE_DIVIDE(SUM(o.total_revenue),
+        COUNT(DISTINCT o.user_id)))                              AS arppu,
+  ROUND(MAX(o.total_revenue))                                   AS max_order_amount,
+  ROUND(SUM(o.order_album_qty))                                 AS album_qty
+FROM `makestar-dw.datamart.total_orders` o
+JOIN `makestar-dw.datamart.events_` e ON o.event_id = e.event_id
+JOIN round_seq rs ON rs.album_name = e.album_name
+WHERE o.market_type IN ('B2C', 'B2B')
+  AND e.artist_id = target_artist_id
+GROUP BY 1, 2, 3, 4, 5
+ORDER BY rs.round_num, e.event_order
+```
+
+---
+
 ## 이벤트 성과
 
 ### 지난주 종료 이벤트 (리워드매출 · 판매량)
