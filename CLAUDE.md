@@ -36,3 +36,4 @@ Makestar 데이터 분석을 위한 공유 프레임워크. 스키마, 도메인
 @context/kpi.md
 @context/kpi_tree.md
 @queries/patterns.md
+@queries/kpi_metrics.md
