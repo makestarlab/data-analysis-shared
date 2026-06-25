@@ -24,7 +24,7 @@ GMV = PU × ARPPU
 | PU | `COUNT(DISTINCT user_id)` | `datamart.total_orders` | ✅ |
 | ARPPU | GMV / PU | `datamart.total_orders` | ✅ |
 | PUR | PU / MAU | `total_orders` + `customer_analysis_visit` | ✅ |
-| 세그먼트 믹스 | Light / Middle / Whale 비중 변화 | `datamart.total_orders` | ✅ |
+| 세그먼트 믹스 | Light / Middle / Whale 비중 변화 | `datamart.total_orders` | ⚠️ Pending (별도 작업 중) |
 
 **세그먼트 기준 (LTV 누적)**
 
