@@ -14,13 +14,19 @@
 ### 매출 분해
 
 ```
-GMV = PU × ARPPU
-       │        └── 주문당 평균 금액 × 구매 빈도
-       └── MAU × PUR (구매전환율)
+GMV
+├── [대분류] market_type별: B2C / B2B / 앨범버디 / 포카앨범제작
+│     └── B2C
+│           └── [B2C 사업별] biz_type별: 한국(이벤트) / 한국(매장) / 중국 / APAC / 일본 / 미주유럽 / 쇼핑
+└── [유저] PU × ARPPU
+               │        └── 주문당 평균 금액 × 구매 빈도
+               └── MAU × PUR (구매전환율)
 ```
 
 | 지표 | 정의 | 데이터 소스 | 상태 |
 |---|---|---|---|
+| 대분류별 GMV | `market_type` 기준 주별 매출 | `datamart.total_orders` | ✅ |
+| B2C 사업별 GMV | `biz_type` 기준 주별 매출 | `datamart.total_orders` | ✅ |
 | PU | `COUNT(DISTINCT user_id)` | `datamart.total_orders` | ✅ |
 | ARPPU | GMV / PU | `datamart.total_orders` | ✅ |
 | PUR | PU / MAU | `total_orders` + `customer_analysis_visit` | ✅ |
@@ -97,6 +103,9 @@ Makestar는 아티스트 이벤트 주기 기반이므로 **단순 미구매 기
 
 ```
 GMV (Main)
+├── 대분류별: B2C / B2B / 앨범버디 / 포카앨범제작
+│     └── B2C 사업별: 한국(이벤트) / 한국(매장) / 중국 / APAC / 일본 / 미주유럽 / 쇼핑
+│
 ├── PU × ARPPU
 │     ├── PU = MAU × PUR
 │     └── ARPPU = 주문당금액 × 빈도 × 세그먼트믹스
