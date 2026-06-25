@@ -11,13 +11,13 @@ KPI 트리 전체 지표 쿼리. BigQuery(`makestar-dw`) 기준.
 
 ```sql
 SELECT
-  FORMAT_DATE('%Y-%m', DATE(pay_date, 'Asia/Seoul'))             AS month,
+  FORMAT_DATE('%Y-%m', DATE(pay_date))             AS month,
   SUM(total_revenue)                                             AS gmv,
   COUNT(DISTINCT user_id)                                        AS pu,
   SAFE_DIVIDE(SUM(total_revenue), COUNT(DISTINCT user_id))       AS arppu
 FROM `makestar-dw.datamart.total_orders`
 WHERE market_type IN ('B2C', 'B2B')
-  AND DATE(pay_date, 'Asia/Seoul') >= '2025-01-01'
+  AND DATE(pay_date) >= '2025-01-01'
 GROUP BY 1
 ORDER BY 1
 ```
@@ -26,15 +26,15 @@ ORDER BY 1
 
 ```sql
 SELECT
-  DATE_TRUNC(DATE(pay_date, 'Asia/Seoul'), WEEK(MONDAY))         AS pay_week,
+  DATE_TRUNC(pay_date, WEEK(MONDAY))         AS pay_week,
   SUM(total_revenue)                                             AS gmv,
   COUNT(DISTINCT user_id)                                        AS pu,
   SAFE_DIVIDE(SUM(total_revenue), COUNT(DISTINCT user_id))       AS arppu
 FROM `makestar-dw.datamart.total_orders`
 WHERE market_type IN ('B2C', 'B2B')
-  AND DATE(pay_date, 'Asia/Seoul') >= DATE_ADD(
+  AND DATE(pay_date) >= DATE_ADD(
         DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY)), INTERVAL -20 WEEK)
-  AND DATE(pay_date, 'Asia/Seoul') < DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY))
+  AND DATE(pay_date) < DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY))
 GROUP BY 1
 ORDER BY 1
 ```
@@ -47,14 +47,14 @@ ORDER BY 1
 
 ```sql
 SELECT
-  DATE_TRUNC(DATE(pay_date, 'Asia/Seoul'), WEEK(MONDAY))         AS pay_week,
+  DATE_TRUNC(pay_date, WEEK(MONDAY))         AS pay_week,
   market_type,
   SUM(total_revenue)                                             AS gmv,
   COUNT(DISTINCT user_id)                                        AS pu
 FROM `makestar-dw.datamart.total_orders`
-WHERE DATE(pay_date, 'Asia/Seoul') >= DATE_ADD(
+WHERE DATE(pay_date) >= DATE_ADD(
         DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY)), INTERVAL -20 WEEK)
-  AND DATE(pay_date, 'Asia/Seoul') < DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY))
+  AND DATE(pay_date) < DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY))
 GROUP BY 1, 2
 ORDER BY 1, 2
 ```
@@ -64,13 +64,13 @@ ORDER BY 1, 2
 ```sql
 WITH weekly AS (
   SELECT
-    DATE_TRUNC(DATE(pay_date, 'Asia/Seoul'), WEEK(MONDAY))       AS pay_week,
+    DATE_TRUNC(pay_date, WEEK(MONDAY))       AS pay_week,
     market_type,
     SUM(total_revenue)                                           AS gmv
   FROM `makestar-dw.datamart.total_orders`
-  WHERE DATE(pay_date, 'Asia/Seoul') >= DATE_ADD(
+  WHERE DATE(pay_date) >= DATE_ADD(
           DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY)), INTERVAL -52 WEEK)
-    AND DATE(pay_date, 'Asia/Seoul') < DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY))
+    AND DATE(pay_date) < DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY))
   GROUP BY 1, 2
 ),
 last_week  AS (SELECT DATE_ADD(DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY)), INTERVAL -1 WEEK) AS wk),
@@ -110,16 +110,16 @@ ORDER BY CASE market_type WHEN '총계' THEN 0 WHEN 'B2C' THEN 1 WHEN 'B2B' THEN
 
 ```sql
 SELECT
-  DATE_TRUNC(DATE(pay_date, 'Asia/Seoul'), WEEK(MONDAY))         AS pay_week,
+  DATE_TRUNC(pay_date, WEEK(MONDAY))         AS pay_week,
   biz_type,
   SUM(total_revenue)                                             AS gmv,
   COUNT(DISTINCT user_id)                                        AS pu,
   SAFE_DIVIDE(SUM(total_revenue), COUNT(DISTINCT user_id))       AS arppu
 FROM `makestar-dw.datamart.total_orders`
 WHERE market_type = 'B2C'
-  AND DATE(pay_date, 'Asia/Seoul') >= DATE_ADD(
+  AND DATE(pay_date) >= DATE_ADD(
         DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY)), INTERVAL -20 WEEK)
-  AND DATE(pay_date, 'Asia/Seoul') < DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY))
+  AND DATE(pay_date) < DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY))
 GROUP BY 1, 2
 ORDER BY 1, 2
 ```
@@ -129,14 +129,14 @@ ORDER BY 1, 2
 ```sql
 WITH weekly AS (
   SELECT
-    DATE_TRUNC(DATE(pay_date, 'Asia/Seoul'), WEEK(MONDAY))       AS pay_week,
+    DATE_TRUNC(pay_date, WEEK(MONDAY))       AS pay_week,
     biz_type,
     SUM(total_revenue)                                           AS gmv
   FROM `makestar-dw.datamart.total_orders`
   WHERE market_type = 'B2C'
-    AND DATE(pay_date, 'Asia/Seoul') >= DATE_ADD(
+    AND DATE(pay_date) >= DATE_ADD(
           DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY)), INTERVAL -52 WEEK)
-    AND DATE(pay_date, 'Asia/Seoul') < DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY))
+    AND DATE(pay_date) < DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY))
   GROUP BY 1, 2
 ),
 last_week  AS (SELECT DATE_ADD(DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY)), INTERVAL -1 WEEK) AS wk),
@@ -180,11 +180,11 @@ PUR = PU / MAU. 월별 집계.
 ```sql
 WITH monthly_pu AS (
   SELECT
-    DATE_TRUNC(DATE(pay_date, 'Asia/Seoul'), MONTH)              AS month,
+    DATE_TRUNC(pay_date, MONTH)              AS month,
     COUNT(DISTINCT user_id)                                      AS pu
   FROM `makestar-dw.datamart.total_orders`
   WHERE market_type IN ('B2C', 'B2B')
-    AND DATE(pay_date, 'Asia/Seoul') >= '2025-01-01'
+    AND DATE(pay_date) >= '2025-01-01'
   GROUP BY 1
 ),
 monthly_mau AS (
@@ -244,7 +244,7 @@ WITH nru AS (
 first_purchase AS (
   SELECT
     user_id,
-    MIN(DATE(pay_date, 'Asia/Seoul'))                            AS first_pay_date
+    MIN(DATE(pay_date))                            AS first_pay_date
   FROM `makestar-dw.datamart.total_orders`
   WHERE market_type IN ('B2C', 'B2B')
   GROUP BY 1
@@ -381,7 +381,7 @@ WITH user_artist_rounds AS (
     o.user_id,
     e.artist_id,
     e.album_name,
-    MIN(DATE(o.pay_date, 'Asia/Seoul'))                          AS first_pay_in_round
+    MIN(DATE(o.pay_date))                          AS first_pay_in_round
   FROM `makestar-dw.datamart.total_orders` o
   JOIN `makestar-dw.datamart.events_` e ON o.event_id = e.event_id
   WHERE o.market_type IN ('B2C', 'B2B')
@@ -437,7 +437,7 @@ WITH last_purchase AS (
   SELECT
     o.user_id,
     e.artist_id,
-    MAX(DATE(o.pay_date, 'Asia/Seoul'))                                                AS last_pay_date,
+    MAX(DATE(o.pay_date))                                                AS last_pay_date,
     ARRAY_AGG(o.event_id IGNORE NULLS ORDER BY o.pay_date DESC LIMIT 1)[SAFE_OFFSET(0)] AS last_event_id
   FROM `makestar-dw.datamart.total_orders` o
   JOIN `makestar-dw.datamart.events_` e ON o.event_id = e.event_id
@@ -463,11 +463,11 @@ with_return AS (
     wne.artist_id,
     wne.last_pay_date,
     wne.next_event_open_date,
-    MAX(DATE(o.pay_date, 'Asia/Seoul'))                          AS return_pay_date
+    MAX(DATE(o.pay_date))                          AS return_pay_date
   FROM with_next_event wne
   LEFT JOIN `makestar-dw.datamart.total_orders` o
     ON  o.user_id = wne.user_id
-    AND DATE(o.pay_date, 'Asia/Seoul') > wne.next_event_open_date
+    AND DATE(o.pay_date) > wne.next_event_open_date
   LEFT JOIN `makestar-dw.datamart.events_` e
     ON  o.event_id = e.event_id
     AND e.artist_id = wne.artist_id
@@ -494,12 +494,12 @@ WITH last_purchase_as_of AS (
   SELECT
     o.user_id,
     e.artist_id,
-    MAX(DATE(o.pay_date, 'Asia/Seoul'))                                                AS last_pay_date
+    MAX(DATE(o.pay_date))                                                AS last_pay_date
   FROM `makestar-dw.datamart.total_orders` o
   JOIN `makestar-dw.datamart.events_` e ON o.event_id = e.event_id
   WHERE o.market_type IN ('B2C', 'B2B')
     AND e.artist_id IS NOT NULL
-    AND DATE(o.pay_date, 'Asia/Seoul') <= snapshot_date
+    AND DATE(o.pay_date) <= snapshot_date
   GROUP BY 1, 2
 ),
 churned_as_of AS (
@@ -519,7 +519,7 @@ returned AS (
   FROM churned_as_of c
   JOIN `makestar-dw.datamart.total_orders` o
     ON  o.user_id = c.user_id
-    AND DATE(o.pay_date, 'Asia/Seoul') > snapshot_date
+    AND DATE(o.pay_date) > snapshot_date
   JOIN `makestar-dw.datamart.events_` e
     ON  o.event_id = e.event_id
     AND e.artist_id = c.artist_id
@@ -547,7 +547,7 @@ WITH artist_round_sales AS (
   SELECT
     e.artist_id,
     e.album_name,
-    MIN(DATE(e.sales_start_at, 'Asia/Seoul'))                    AS round_open_date,
+    MIN(DATE(e.sales_start_at))                    AS round_open_date,
     SUM(o.total_revenue)                                         AS gmv,
     SUM(o.order_album_qty)                                       AS album_qty,
     COUNT(DISTINCT o.user_id)                                    AS pu,
@@ -601,7 +601,7 @@ WITH artist_round_sales AS (
   SELECT
     e.artist_id,
     e.album_name,
-    MIN(DATE(e.sales_start_at, 'Asia/Seoul'))                    AS round_open_date,
+    MIN(DATE(e.sales_start_at))                    AS round_open_date,
     SUM(o.total_revenue)                                         AS gmv,
     SUM(o.order_album_qty)                                       AS album_qty,
     COUNT(DISTINCT o.user_id)                                    AS pu,
@@ -679,8 +679,8 @@ WITH event_sales AS (
     e.album_name,
     e.event_order,
     e.event_type,
-    DATE(e.sales_start_at, 'Asia/Seoul')                         AS open_date,
-    DATE(e.sales_end_at, 'Asia/Seoul')                           AS close_date,
+    DATE(e.sales_start_at)                         AS open_date,
+    DATE(e.sales_end_at)                           AS close_date,
     SUM(o.total_revenue)                                         AS gmv,
     SUM(o.order_album_qty)                                       AS album_qty,
     COUNT(DISTINCT o.user_id)                                    AS pu,
@@ -722,7 +722,7 @@ ORDER BY rs.round_num, es.event_order
 
 ```sql
 SELECT
-  DATE_TRUNC(DATE(o.pay_date, 'Asia/Seoul'), MONTH)              AS month,
+  DATE_TRUNC(DATE(o.pay_date), MONTH)              AS month,
   e.event_type,
   SUM(o.total_revenue)                                           AS gmv,
   COUNT(DISTINCT o.user_id)                                      AS pu,
@@ -733,7 +733,7 @@ FROM `makestar-dw.datamart.total_orders` o
 JOIN `makestar-dw.datamart.events_` e ON o.event_id = e.event_id
 WHERE o.market_type IN ('B2C', 'B2B')
   AND e.event_type IS NOT NULL
-  AND DATE(o.pay_date, 'Asia/Seoul') >= '2025-01-01'
+  AND DATE(o.pay_date) >= '2025-01-01'
 GROUP BY 1, 2
 ORDER BY 1, 3 DESC
 ```
@@ -774,7 +774,7 @@ ORDER BY 4 DESC
 
 ```sql
 SELECT
-  DATE_TRUNC(DATE(pay_date, 'Asia/Seoul'), MONTH)                AS month,
+  DATE_TRUNC(pay_date, MONTH)                AS month,
   COUNT(DISTINCT order_no)                                       AS order_count,
   ROUND(SAFE_DIVIDE(SUM(total_revenue),
         COUNT(DISTINCT order_no)))                               AS aov,
@@ -784,7 +784,7 @@ SELECT
         COUNT(DISTINCT order_no)))                               AS shipping_aov
 FROM `makestar-dw.datamart.total_orders`
 WHERE market_type IN ('B2C', 'B2B')
-  AND DATE(pay_date, 'Asia/Seoul') >= '2025-01-01'
+  AND DATE(pay_date) >= '2025-01-01'
 GROUP BY 1
 ORDER BY 1
 ```
@@ -883,8 +883,8 @@ SELECT
   e.event_type,
   e.event_id,
   e.event_name,
-  DATE(e.sales_start_at, 'Asia/Seoul')                           AS open_date,
-  DATE(e.sales_end_at, 'Asia/Seoul')                             AS close_date,
+  DATE(e.sales_start_at)                           AS open_date,
+  DATE(e.sales_end_at)                             AS close_date,
   ROUND(SUM(o.total_revenue))                                   AS gmv,
   COUNT(DISTINCT o.order_no)                                     AS order_count,
   ROUND(SAFE_DIVIDE(SUM(o.total_revenue),
@@ -922,7 +922,7 @@ SELECT
   e.album_name                                                   AS round_name,
   e.event_order,
   e.event_type,
-  DATE(e.sales_start_at, 'Asia/Seoul')                           AS open_date,
+  DATE(e.sales_start_at)                           AS open_date,
   ROUND(SUM(o.total_revenue))                                   AS gmv,
   ROUND(LAG(SUM(o.total_revenue)) OVER(
     PARTITION BY e.album_name ORDER BY e.event_order))           AS prev_event_gmv,
@@ -953,13 +953,13 @@ ORDER BY rs.round_num, e.event_order
 SELECT
   e.event_id                                                     AS `이벤트ID`,
   e.event_name                                                   AS `이벤트명`,
-  DATE(e.sales_start_at, 'Asia/Seoul')                           AS `오픈일`,
-  DATE(e.sales_end_at, 'Asia/Seoul')                             AS `종료일`,
+  DATE(e.sales_start_at)                           AS `오픈일`,
+  DATE(e.sales_end_at)                             AS `종료일`,
   COALESCE(SUM(o.product_revenue), 0)                           AS `리워드매출`,
   COALESCE(SUM(o.order_album_qty), 0)                           AS `판매량`
 FROM `makestar-dw.datamart.events_` e
 LEFT JOIN `makestar-dw.datamart.total_orders` o ON o.event_id = e.event_id
-WHERE DATE(e.sales_end_at, 'Asia/Seoul') BETWEEN
+WHERE DATE(e.sales_end_at) BETWEEN
         DATE_ADD(DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY)), INTERVAL -1 WEEK)
     AND DATE_ADD(DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY)), INTERVAL -1 DAY)
   AND e.event_name NOT LIKE '%(삭제 필요)%'
