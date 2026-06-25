@@ -538,6 +538,30 @@ LEFT JOIN returned r USING (user_id, artist_id)
 
 ---
 
+## 이벤트 성과
+
+### 지난주 종료 이벤트 (리워드매출 · 판매량)
+
+```sql
+SELECT
+  e.event_id                                                     AS `이벤트ID`,
+  e.event_name                                                   AS `이벤트명`,
+  DATE(e.sales_start_at, 'Asia/Seoul')                           AS `오픈일`,
+  DATE(e.sales_end_at, 'Asia/Seoul')                             AS `종료일`,
+  COALESCE(SUM(o.product_revenue), 0)                           AS `리워드매출`,
+  COALESCE(SUM(o.order_album_qty), 0)                           AS `판매량`
+FROM `makestar-dw.datamart.events_` e
+LEFT JOIN `makestar-dw.datamart.total_orders` o ON o.event_id = e.event_id
+WHERE DATE(e.sales_end_at, 'Asia/Seoul') BETWEEN
+        DATE_ADD(DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY)), INTERVAL -1 WEEK)
+    AND DATE_ADD(DATE_TRUNC(CURRENT_DATE('Asia/Seoul'), WEEK(MONDAY)), INTERVAL -1 DAY)
+  AND e.event_name NOT LIKE '%(삭제 필요)%'
+GROUP BY 1, 2, 3, 4
+ORDER BY 5 DESC
+```
+
+---
+
 ## ⚠️ Pending
 
 | KPI | 이유 |
